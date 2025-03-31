@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fireflies Transcription Service</title>
+    <style>
+        :root {
+            --primary-color: #4a86e8;
+            --secondary-color: #6d9eeb;
+            --accent-color: #3c78d8;
+            --text-color: #333;
+            --light-gray: #f5f5f5;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--light-gray);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            flex: 1;
+        }
+
+        header {
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            text-align: center;
+            color: var(--primary-color);
+        }
+
+        .screen {
+            display: none;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        .active {
+            display: block;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(74, 134, 232, 0.2);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--accent-color);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        .loading-animation {
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+        }
+
+        .loading-animation:after {
+            content: " ";
+            display: block;
+            width: 64px;
+            height: 64px;
+            margin: 8px;
+            border-radius: 50%;
+            border: 6px solid var(--primary-color);
+            border-color: var(--primary-color) transparent var(--primary-color) transparent;
+            animation: loading-animation 1.2s linear infinite;
+        }
+
+        @keyframes loading-animation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .transcript-container {
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--light-gray);
+            margin-bottom: 20px;
+            white-space: pre-line;
+        }
+
+        .transcript-line {
+            margin-bottom: 10px;
+        }
+
+        .transcript-speaker {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .speaker-text {
+            color: var(--text-color);
+        }
+
+        .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .meeting-details {
+            background-color: var(--light-gray);
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .meeting-details p {
+            margin-bottom: 8px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-pending {
+            background-color: #ffa000;
+        }
+
+        .status-complete {
+            background-color: #4caf50;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background-color: #4caf50;
+            color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Fireflies Transcription Service</h1>
+    </header>
+
+    <div class="container">
+        <!-- Error message display -->
+        <div id="errorMessage" class="error-message"></div>
+
+        <!-- Screen 1: Input Form -->
+        <div id="inputScreen" class="screen active">
+            <h2>Start a Meeting Transcription</h2>
+            <form id="meetingForm">
+                <div class="form-group">
+                    <label for="googleMeetUrl">Google Meet URL</label>
+                    <input type="url" id="googleMeetUrl" placeholder="https://meet.google.com/abc-defg-hij" required>
+                </div>
+                <div class="form-group">
+                    <label for="projectId">Project ID</label>
+                    <input type="text" id="projectId" placeholder="Enter project identifier" required>
+                </div>
+                <div class="form-group">
+                    <label for="meetingTitle">Meeting Title (Optional)</label>
+                    <input type="text" id="meetingTitle" placeholder="Enter meeting title">
+                </div>
+                <div class="form-group">
+                    <label for="meetingDuration">Duration in Minutes (Optional)</label>
+                    <input type="number" id="meetingDuration" placeholder="60" min="1">
+                </div>
+                <button type="submit">Start Transcription</button>
+            </form>
+        </div>
+
+        <!-- Screen 2: Waiting for Meeting -->
+        <div id="waitingScreen" class="screen">
+            <h2>Transcription in Progress</h2>
+            <div class="loading">
+                <div class="loading-animation"></div>
+                <p>Waiting for the meeting to complete...</p>
+                <p>The transcript will be available once the meeting has ended and been processed.</p>
+            </div>
+            <div class="meeting-details">
+                <h3>Meeting Details</h3>
+                <p><strong>Meeting URL:</strong> <span id="displayMeetingUrl"></span></p>
+                <p><strong>Project ID:</strong> <span id="displayProjectId"></span></p>
+                <p><strong>Status:</strong> <span class="status-indicator status-pending"></span> Pending</p>
+            </div>
+            <div class="button-group">
+                <button id="checkStatusButton">Check Status</button>
+                <button id="startNewButton">Start New Transcription</button>
+            </div>
+        </div>
+
+        <!-- Screen 3: Transcript Display -->
+        <div id="transcriptScreen" class="screen">
+            <h2>Meeting Transcript</h2>
+            <div class="meeting-details">
+                <h3>Meeting Details</h3>
+                <p><strong>Meeting URL:</strong> <span id="transcriptMeetingUrl"></span></p>
+                <p><strong>Project ID:</strong> <span id="transcriptProjectId"></span></p>
+                <p><strong>Meeting Date:</strong> <span id="transcriptMeetingDate"></span></p>
+                <p><strong>Status:</strong> <span class="status-indicator status-complete"></span> Complete</p>
+            </div>
+            <div class="transcript-container" id="transcriptContent"></div>
+            <button id="newTranscriptionButton">Start New Transcription</button>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <footer>
+        <p>Fireflies Transcription Service &copy; 2025</p>
+    </footer>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = ''; // Leave empty for relative URLs, or set to your API server URL if different
+
+        // State management
+        let currentMeetingId = null;
+        let pollingInterval = null;
+        let meetingData = {};
+
+        // DOM Elements
+        const inputScreen = document.getElementById('inputScreen');
+        const waitingScreen = document.getElementById('waitingScreen');
+        const transcriptScreen = document.getElementById('transcriptScreen');
+        const errorMessageEl = document.getElementById('errorMessage');
+        const meetingForm = document.getElementById('meetingForm');
+        
+        const displayMeetingUrl = document.getElementById('displayMeetingUrl');
+        const displayProjectId = document.getElementById('displayProjectId');
+        
+        const transcriptMeetingUrl = document.getElementById('transcriptMeetingUrl');
+        const transcriptProjectId = document.getElementById('transcriptProjectId');
+        const transcriptMeetingDate = document.getElementById('transcriptMeetingDate');
+        const transcriptContent = document.getElementById('transcriptContent');
+
+        const checkStatusButton = document.getElementById('checkStatusButton');
+        const startNewButton = document.getElementById('startNewButton');
+        const newTranscriptionButton = document.getElementById('newTranscriptionButton');
+        
+        const notification = document.getElementById('notification');
+
+        // Helper functions
+        function showScreen(screenId) {
+            // Hide all screens
+            inputScreen.classList.remove('active');
+            waitingScreen.classList.remove('active');
+            transcriptScreen.classList.remove('active');
+
+            // Show the requested screen
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function showError(message) {
+            errorMessageEl.textContent = message;
+            errorMessageEl.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                errorMessageEl.style.display = 'none';
+            }, 5000);
+        }
+
+        function clearError() {
+            errorMessageEl.style.display = 'none';
+        }
+
+        function showNotification(message) {
+            notification.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            
+            const date = new Date(dateString);
+            return new Intl.DateTimeFormat('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric',
+                second: 'numeric',
+                hour12: true
+            }).format(date);
+        }
+
+        function startPolling(meetingId) {
+            // Clear any existing interval
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            
+            // Set up polling every 10 seconds
+            pollingInterval = setInterval(() => {
+                checkMeetingStatus(meetingId);
+            }, 10000);
+        }
+
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+        }
+
+        // API interaction functions
+        async function createMeeting(meetingData) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/meetings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(meetingData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create meeting');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Error creating meeting:', error);
+                throw error;
+            }
+        }
+
+        async function getMeeting(meetingId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to retrieve meeting');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Error retrieving meeting:', error);
+                throw error;
+            }
+        }
+
+        async function checkMeetingStatus(meetingId) {
+            try {
+                const meetingData = await getMeeting(meetingId);
+                
+                // If we have a transcription, show it
+                if (meetingData.transcription) {
+                    displayTranscript(meetingData);
+                    stopPolling();
+                    return true;
+                }
+                
+                return false;
+            } catch (error) {
+                console.warn('Error checking meeting status:', error);
+                return false;
+            }
+        }
+
+        function displayTranscript(meetingData) {
+            // Update the transcript screen with meeting details
+            transcriptMeetingUrl.textContent = meetingData.meeting_url;
+            transcriptProjectId.textContent = meetingData.project_id;
+            transcriptMeetingDate.textContent = formatDate(meetingData.meeting_datetime);
+            
+            // Parse and display the transcript
+            const transcription = meetingData.transcription || 'No transcript available yet.';
+            
+            // Clear the transcript container
+            transcriptContent.innerHTML = '';
+            
+            if (transcription === 'No transcript available yet.') {
+                transcriptContent.textContent = transcription;
+            } else {
+                // Split by new lines and format each line
+                const lines = transcription.split('\n');
+                lines.forEach(line => {
+                    if (!line.trim()) return; // Skip empty lines
+                    
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'transcript-line';
+                    
+                    // Try to separate speaker from text
+                    const colonIndex = line.indexOf(':');
+                    if (colonIndex > 0) {
+                        const speaker = line.substring(0, colonIndex).trim();
+                        const text = line.substring(colonIndex + 1).trim();
+                        
+                        const speakerSpan = document.createElement('span');
+                        speakerSpan.className = 'transcript-speaker';
+                        speakerSpan.textContent = speaker + ': ';
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.className = 'speaker-text';
+                        textSpan.textContent = text;
+                        
+                        lineDiv.appendChild(speakerSpan);
+                        lineDiv.appendChild(textSpan);
+                    } else {
+                        // If no colon, just use the whole line
+                        lineDiv.textContent = line;
+                    }
+                    
+                    transcriptContent.appendChild(lineDiv);
+                });
+            }
+            
+            // Show the transcript screen
+            showScreen('transcriptScreen');
+        }
+
+        // Event Handlers
+        meetingForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            clearError();
+            
+            const googleMeetUrl = document.getElementById('googleMeetUrl').value.trim();
+            const projectId = document.getElementById('projectId').value.trim();
+            const meetingTitle = document.getElementById('meetingTitle').value.trim();
+            const meetingDuration = document.getElementById('meetingDuration').value.trim();
+            
+            // Validate Google Meet URL
+            if (!googleMeetUrl.startsWith('https://meet.google.com/')) {
+                showError('Please enter a valid Google Meet URL (starting with https://meet.google.com/)');
+                return;
+            }
+            
+            // Prepare meeting data
+            const meetingData = {
+                project_id: projectId,
+                google_meet_url: googleMeetUrl
+            };
+            
+            if (meetingTitle) {
+                meetingData.title = meetingTitle;
+            }
+            
+            if (meetingDuration && !isNaN(meetingDuration)) {
+                meetingData.duration = parseInt(meetingDuration);
+            }
+            
+            try {
+                // Create the meeting
+                const response = await createMeeting(meetingData);
+                
+                // Save the meeting ID and data
+                currentMeetingId = response.id;
+                meetingData = {
+                    ...meetingData,
+                    id: response.id
+                };
+                
+                // Update the waiting screen
+                displayMeetingUrl.textContent = googleMeetUrl;
+                displayProjectId.textContent = projectId;
+                
+                // Switch to waiting screen
+                showScreen('waitingScreen');
+                
+                // Start polling for updates
+                startPolling(currentMeetingId);
+                
+                showNotification('Meeting transcription started');
+            } catch (error) {
+                showError(error.message || 'Failed to start meeting transcription');
+            }
+        });
+
+        checkStatusButton.addEventListener('click', async function() {
+            if (!currentMeetingId) {
+                showError('No active meeting to check');
+                return;
+            }
+            
+            try {
+                const hasTranscript = await checkMeetingStatus(currentMeetingId);
+                if (!hasTranscript) {
+                    showNotification('Transcript not ready yet. Still waiting...');
+                }
+            } catch (error) {
+                showError(error.message || 'Failed to check meeting status');
+            }
+        });
+
+        startNewButton.addEventListener('click', function() {
+            stopPolling();
+            currentMeetingId = null;
+            meetingData = {};
+            showScreen('inputScreen');
+        });
+
+        newTranscriptionButton.addEventListener('click', function() {
+            currentMeetingId = null;
+            meetingData = {};
+            showScreen('inputScreen');
+        });
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            showScreen('inputScreen');
+        });
+    </script>
+</body>
+</html>

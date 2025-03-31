@@ -1,5 +1,6 @@
 import logging
 from flask import Flask
+from flask_cors import CORS
 from app.models import db
 from app.config import Config
 
@@ -8,6 +9,9 @@ def create_app(config_class=Config):
     """Create and configure the Flask application."""
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # Configure CORS
+    CORS(app)
     
     # Configure logging
     logging.basicConfig(
@@ -18,9 +22,13 @@ def create_app(config_class=Config):
     # Initialize extensions
     db.init_app(app)
     
-    # Register blueprints
+    # Register API blueprints
     from app.routes.meetings import meetings_bp
     app.register_blueprint(meetings_bp)
+    
+    # Register UI blueprint
+    from app.routes.ui import ui_bp
+    app.register_blueprint(ui_bp)
     
     # Register test utils blueprint in development mode
     if app.config['DEBUG']:
