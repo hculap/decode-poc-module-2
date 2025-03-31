@@ -8,7 +8,7 @@ This script tests all endpoints of the Fireflies transcription service:
 3. Retrieving the meeting transcript
 
 Usage:
-    python test_fireflies_service.py [--host=http://localhost:5000]
+    python test_fireflies_service.py [--host=http://localhost:8000]
 """
 
 import argparse
@@ -234,7 +234,7 @@ def inject_test_transcript(base_url, meeting_id, meeting_url):
 def main():
     """Main test function."""
     parser = argparse.ArgumentParser(description="Test Fireflies Transcription Service")
-    parser.add_argument("--host", default="http://localhost:5000", help="Base URL of the service")
+    parser.add_argument("--host", default="http://localhost:8000", help="Base URL of the service")
     parser.add_argument("--webhook-secret", default=None, help="Webhook secret (if enabled)")
     args = parser.parse_args()
     
