@@ -103,6 +103,7 @@ def process_transcription(fireflies_meeting_id):
     try:
         # Fetch the transcript from Fireflies
         transcript_data = FirefliesService.get_transcript_by_id(fireflies_meeting_id)
+        print(transcript_data)
         if not transcript_data:
             return None, "Failed to retrieve transcript", 404
             
@@ -116,7 +117,7 @@ def process_transcription(fireflies_meeting_id):
         # Format transcription with speaker names
         transcript_lines = []
         for sentence in sentences:
-            speaker = sentence.get("speaker", "Unknown")
+            speaker = sentence.get("speaker_name", "Unknown")
             text = sentence.get("text", "")
             if text:
                 transcript_lines.append(f"{speaker}: {text}")

@@ -95,7 +95,7 @@ class FirefliesService:
                 meeting_link
                 sentences { 
                   text
-                  speaker
+                  speaker_name
                 }
                 summary {
                   overview
@@ -113,6 +113,7 @@ class FirefliesService:
                 json={"query": query, "variables": variables}, 
                 headers=headers
             )
+            print({"query": query, "variables": variables})
             resp.raise_for_status()
             data = resp.json()
             
