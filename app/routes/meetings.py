@@ -68,6 +68,59 @@ def create_meeting():
         return jsonify({"error": "Internal server error"}), 500
 
 
+def process_transcription(fireflies_meeting_id):
+    """
+    Process a transcription from Fireflies.ai.
+    
+    Args:
+        fireflies_meeting_id (str): The Fireflies transcript ID
+        
+    Returns:
+        tuple: (meeting_record, error_message, status_code)
+            - meeting_record: Updated Meeting object or None if error
+            - error_message: Error message or None if successful
+            - status_code: HTTP status code (404, 500, etc.) or None if successful
+    """
+    try:
+        # Fetch the transcript from Fireflies
+        transcript_data = FirefliesService.get_transcript_by_id(fireflies_meeting_id)
+        if not transcript_data:
+            return None, "Failed to retrieve transcript", 404
+            
+        # Extract meeting link and sentences
+        meeting_link = transcript_data.get("meeting_link")
+        sentences = transcript_data.get("sentences", [])
+        
+        if not meeting_link:
+            return None, "Meeting link not found in transcript data", 404
+            
+        # Format transcription with speaker names
+        transcript_lines = []
+        for sentence in sentences:
+            speaker = sentence.get("speaker", "Unknown")
+            text = sentence.get("text", "")
+            if text:
+                transcript_lines.append(f"{speaker}: {text}")
+        
+        full_text = "\n".join(transcript_lines)
+        
+        # Find the corresponding meeting in our database
+        meeting_record = Meeting.query.filter(Meeting.meeting_url == meeting_link).first()
+        if not meeting_record:
+            return None, f"No matching meeting found for URL: {meeting_link}", 404
+                
+        # Update the meeting record with transcript info
+        meeting_record.meeting_id = fireflies_meeting_id
+        meeting_record.transcription = full_text
+        db.session.commit()
+        
+        logger.info(f"Successfully processed transcript for meeting: {meeting_record.id}")
+        return meeting_record, None, None
+    except Exception as e:
+        logger.exception(f"Error processing transcription for meeting ID {fireflies_meeting_id}")
+        return None, f"Error processing transcription: {str(e)}", 500
+
+
 @meetings_bp.route("/webhook", methods=["POST"])
 def fireflies_webhook():
     """Receive webhook notifications from Fireflies.ai."""
@@ -90,37 +143,12 @@ def fireflies_webhook():
             if not fireflies_meeting_id:
                 return jsonify({"error": "Missing meetingId"}), 400
                 
-            # Fetch the transcript from Fireflies
-            transcript_data = FirefliesService.get_transcript_by_id(fireflies_meeting_id)
-            if not transcript_data:
-                return jsonify({"error": "Failed to retrieve transcript"}), 404
+            # Process the transcription
+            meeting_record, error_message, status_code = process_transcription(fireflies_meeting_id)
+            
+            if error_message:
+                return jsonify({"error": error_message}), status_code
                 
-            # Extract meeting link and sentences
-            meeting_link = transcript_data.get("meeting_link")
-            sentences = transcript_data.get("sentences", [])
-            
-            # Format transcription with speaker names
-            transcript_lines = []
-            for sentence in sentences:
-                speaker = sentence.get("speaker", "Unknown")
-                text = sentence.get("text", "")
-                if text:
-                    transcript_lines.append(f"{speaker}: {text}")
-            
-            full_text = "\n".join(transcript_lines)
-            
-            # Find the corresponding meeting in our database
-            meeting_record = Meeting.query.filter(Meeting.meeting_url == meeting_link).first()
-            if not meeting_record:
-                logger.warning(f"No matching meeting found for URL: {meeting_link}")
-                return jsonify({"error": "Meeting not found in database"}), 404
-                
-            # Update the meeting record with transcript info
-            meeting_record.meeting_id = fireflies_meeting_id
-            meeting_record.transcription = full_text
-            db.session.commit()
-            
-            logger.info(f"Successfully updated transcript for meeting: {meeting_record.id}")
             return "OK", 200
         
         # Acknowledge other event types without processing them
@@ -138,6 +166,7 @@ def get_meeting(meeting_id):
     This endpoint will try to find the meeting by:
     1. Fireflies meeting_id
     2. Internal database ID (if meeting_id is numeric)
+    3. If found but has no transcription, will check Fireflies API
     """
     try:
         # Try to find by Fireflies meeting ID first
@@ -149,6 +178,31 @@ def get_meeting(meeting_id):
             
         if not meeting_record:
             return jsonify({"error": "Meeting not found"}), 404
+        
+        # If we have a meeting record but no transcription and it has a Fireflies meeting ID,
+        # try to fetch the transcription from Fireflies
+        if (not meeting_record.transcription and meeting_record.meeting_id):
+            logger.info(f"Meeting {meeting_id} found but has no transcription. Fetching from Fireflies...")
+            updated_meeting, error_message, status_code = process_transcription(meeting_record.meeting_id)
+            
+            if updated_meeting:
+                meeting_record = updated_meeting
+            else:
+                logger.warning(f"Failed to fetch transcription from Fireflies: {error_message}")
+                # Continue with the existing record even if fetching failed
+        
+        # If we have a meeting record with no transcription and no Fireflies meeting ID,
+        # but it matches the provided meeting_id, try to fetch the transcription
+        elif (not meeting_record.transcription and not meeting_record.meeting_id 
+              and meeting_id != str(meeting_record.id)):
+            logger.info(f"Trying to use provided ID as Fireflies meeting ID: {meeting_id}")
+            updated_meeting, error_message, status_code = process_transcription(meeting_id)
+            
+            if updated_meeting:
+                meeting_record = updated_meeting
+            else:
+                logger.warning(f"Failed to fetch transcription using provided ID: {error_message}")
+                # Continue with the existing record even if fetching failed
             
         # Return meeting data
         return jsonify(meeting_record.to_dict()), 200
