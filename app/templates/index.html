@@ -4,453 +4,216 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fireflies Transcription Service</title>
-    <style>
-        :root {
-            --primary-color: #4a86e8;
-            --secondary-color: #6d9eeb;
-            --accent-color: #3c78d8;
-            --text-color: #333;
-            --light-gray: #f5f5f5;
-            --border-color: #ddd;
-            --success-color: #4caf50;
-            --warning-color: #ffa000;
-            --info-color: #03a9f4;
-            --error-color: #f44336;
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4a86e8',
+                        secondary: '#6d9eeb',
+                        accent: '#3c78d8',
+                        success: '#4caf50',
+                        warning: '#ffa000',
+                        info: '#03a9f4',
+                        error: '#f44336'
+                    }
+                }
+            }
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: var(--text-color);
-            background-color: var(--light-gray);
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-            flex: 1;
-        }
-
-        header {
-            background-color: white;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            padding: 20px 0;
-            margin-bottom: 30px;
-        }
-
-        header h1 {
-            text-align: center;
-            color: var(--primary-color);
-        }
-
-        .screen {
-            display: none;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-        }
-
-        .active {
-            display: block;
-        }
-
-        h2 {
-            margin-bottom: 20px;
-            color: var(--primary-color);
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        input, textarea {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 16px;
-        }
-
-        input:focus, textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 2px rgba(74, 134, 232, 0.2);
-        }
-
-        button {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: background-color 0.2s;
-        }
-
-        button:hover {
-            background-color: var(--accent-color);
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px 0;
-        }
-
-        .loading-animation {
-            display: inline-block;
-            width: 80px;
-            height: 80px;
-            margin-bottom: 20px;
-        }
-
-        .loading-animation:after {
-            content: " ";
-            display: block;
-            width: 64px;
-            height: 64px;
-            margin: 8px;
-            border-radius: 50%;
-            border: 6px solid var(--primary-color);
-            border-color: var(--primary-color) transparent var(--primary-color) transparent;
-            animation: loading-animation 1.2s linear infinite;
-        }
-
-        @keyframes loading-animation {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .transcript-container {
-            max-height: 500px;
-            overflow-y: auto;
-            padding: 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            background-color: var(--light-gray);
-            margin-bottom: 20px;
-            white-space: pre-line;
-        }
-
-        .transcript-line {
-            margin-bottom: 10px;
-        }
-
-        .transcript-speaker {
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .speaker-text {
-            color: var(--text-color);
-        }
-
-        .error-message {
-            background-color: #ffebee;
-            color: #c62828;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .meeting-details {
-            background-color: var(--light-gray);
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-
-        .meeting-details p {
-            margin-bottom: 8px;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        footer {
-            text-align: center;
-            padding: 20px;
-            background-color: white;
-            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
-            margin-top: 30px;
-        }
-
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .status-pending {
-            background-color: var(--warning-color);
-        }
-
-        .status-complete {
-            background-color: var(--success-color);
-        }
-
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            background-color: #4caf50;
-            color: white;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            z-index: 1000;
-        }
-
-        .notification.show {
-            opacity: 1;
-        }
-
-        /* Styles for meeting list */
-        .meeting-list-container {
-            margin-bottom: 20px;
-            max-height: 500px;
-            overflow-y: auto;
-        }
-
-        .meeting-card {
-            background-color: white;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 15px;
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .meeting-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .meeting-card h3 {
-            margin-bottom: 10px;
-            color: var(--primary-color);
-        }
-
-        .meeting-card p {
-            margin-bottom: 5px;
-        }
-
-        .meeting-status {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-left: 10px;
-        }
-
-        .status-completed {
-            background-color: #e8f5e9;
-            color: #2e7d32;
-        }
-
-        .status-pending {
-            background-color: #fff8e1;
-            color: #f57f17;
-        }
-
-        /* Status summary styles */
-        .status-summary {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-            background: white;
-            padding: 10px 15px;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            flex-wrap: wrap;
-        }
-
-        .status-summary-item {
-            display: flex;
-            align-items: center;
-            margin-right: 15px;
-            margin-bottom: 5px;
-        }
-
-        .status-count {
-            font-weight: bold;
-            margin-right: 5px;
-        }
-
-        .filter-controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-
-        .filter-button {
-            padding: 6px 12px;
-            border-radius: 20px;
-            border: 1px solid var(--border-color);
-            background: white;
-            color: #333;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .filter-button:hover {
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .filter-button.active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .status-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-    </style>
+    </script>
 </head>
-<body>
-    <header>
-        <h1>Fireflies Transcription Service</h1>
+<body class="flex flex-col min-h-screen bg-gray-100 text-gray-800 font-sans">
+    <header class="bg-white shadow-md py-5 mb-8">
+        <h1 class="text-center text-primary font-bold text-2xl">Fireflies Transcription Service</h1>
     </header>
 
-    <div class="container">
+    <div class="container max-w-4xl mx-auto px-5 flex-grow">
         <!-- Error message display -->
-        <div id="errorMessage" class="error-message"></div>
+        <div id="errorMessage" class="hidden bg-red-50 text-red-800 p-3 rounded mb-5"></div>
 
         <!-- Initial Loading Screen -->
-        <div id="loaderScreen" class="screen active">
-            <div class="loading">
-                <div class="loading-animation"></div>
-                <p>Loading project data...</p>
+        <div id="loaderScreen" class="screen bg-white rounded-lg shadow-md p-8 active">
+            <div class="text-center py-10">
+                <div class="inline-block w-20 h-20 mb-5 relative">
+                    <div class="absolute w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <p class="mb-2">Loading project data...</p>
                 <p>Please wait while we retrieve your meeting information.</p>
             </div>
         </div>
 
         <!-- Meeting List Screen -->
-        <div id="meetingListScreen" class="screen">
-            <h2>Project Meetings</h2>
-            <div class="meeting-details">
-                <p><strong>Project ID:</strong> <span id="listProjectId"></span></p>
+        <div id="meetingListScreen" class="screen bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-xl text-primary font-bold mb-5">Project Meetings</h2>
+            <div class="bg-gray-100 p-4 rounded mb-5">
+                <p><span class="font-semibold">Project ID:</span> <span id="listProjectId"></span></p>
             </div>
             
             <!-- Status Summary Section -->
-            <div class="status-summary" id="statusSummary">
+            <div class="flex justify-between mb-4 bg-white p-3 rounded shadow-sm flex-wrap" id="statusSummary">
                 <!-- Status counts will be populated here -->
             </div>
             
             <!-- Filter Controls -->
-            <div class="filter-controls" id="filterControls">
-                <button class="filter-button active" data-filter="all">All Meetings</button>
-                <button class="filter-button" data-filter="completed">Completed</button>
-                <button class="filter-button" data-filter="pending">Pending</button>
+            <div class="flex gap-3 mb-4 flex-wrap" id="filterControls">
+                <button class="filter-button px-3 py-1.5 rounded-full border border-gray-300 bg-white text-gray-800 text-sm transition-all hover:shadow-sm active" data-filter="all">All Meetings</button>
+                <button class="filter-button px-3 py-1.5 rounded-full border border-gray-300 bg-white text-gray-800 text-sm transition-all hover:shadow-sm" data-filter="completed">Completed</button>
+                <button class="filter-button px-3 py-1.5 rounded-full border border-gray-300 bg-white text-gray-800 text-sm transition-all hover:shadow-sm" data-filter="pending">Pending</button>
             </div>
             
-            <div id="meetingsList" class="meeting-list-container">
+            <div id="meetingsList" class="mb-5 max-h-96 overflow-y-auto">
                 <!-- Meetings will be populated here -->
             </div>
-            <div class="button-group">
-                <button id="startNewFromListButton">Start New Meeting</button>
+            <div class="flex gap-3">
+                <button id="startNewFromListButton" class="px-5 py-3 bg-primary text-white rounded font-semibold transition-colors hover:bg-accent">Start New Meeting</button>
             </div>
         </div>
 
         <!-- Input Form Screen -->
-        <div id="inputScreen" class="screen">
-            <h2>Start a Meeting Transcription</h2>
+        <div id="inputScreen" class="screen bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-xl text-primary font-bold mb-5">Start a Meeting Transcription</h2>
             <form id="meetingForm">
-                <div class="form-group">
-                    <label for="googleMeetUrl">Google Meet URL</label>
-                    <input type="url" id="googleMeetUrl" placeholder="https://meet.google.com/abc-defg-hij" required>
+                <div class="mb-5">
+                    <label for="googleMeetUrl" class="block mb-2 font-semibold">Google Meet URL</label>
+                    <input type="url" id="googleMeetUrl" placeholder="https://meet.google.com/abc-defg-hij" 
+                           class="w-full p-3 border border-gray-300 rounded text-base focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" required>
                 </div>
-                <div class="form-group">
-                    <label for="meetingTitle">Meeting Title (Optional)</label>
-                    <input type="text" id="meetingTitle" placeholder="Enter meeting title">
+                <div class="mb-5">
+                    <label for="meetingTitle" class="block mb-2 font-semibold">Meeting Title (Optional)</label>
+                    <input type="text" id="meetingTitle" placeholder="Enter meeting title" 
+                           class="w-full p-3 border border-gray-300 rounded text-base focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
                 </div>
-                <button type="submit">Start Transcription</button>
+                <button type="submit" class="px-5 py-3 bg-primary text-white rounded font-semibold transition-colors hover:bg-accent">Start Transcription</button>
             </form>
         </div>
 
         <!-- Screen 2: Waiting for Meeting -->
-        <div id="waitingScreen" class="screen">
-            <h2>Transcription in Progress</h2>
-            <div class="loading">
-                <div class="loading-animation"></div>
-                <p>Waiting for the meeting to complete...</p>
+        <div id="waitingScreen" class="screen bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-xl text-primary font-bold mb-5">Transcription in Progress</h2>
+            <div class="text-center py-10">
+                <div class="inline-block w-20 h-20 mb-5 relative">
+                    <div class="absolute w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <p class="mb-2">Waiting for the meeting to complete...</p>
                 <p>The transcript will be available once the meeting has ended and been processed.</p>
             </div>
-            <div class="meeting-details">
-                <h3>Meeting Details</h3>
-                <p><strong>Meeting URL:</strong> <span id="displayMeetingUrl"></span></p>
-                <p><strong>Project ID:</strong> <span id="displayProjectId"></span></p>
-                <p><strong>Status:</strong> <span class="status-indicator status-pending"></span> Pending</p>
+            <div class="bg-gray-100 p-4 rounded mb-5">
+                <h3 class="font-bold mb-2">Meeting Details</h3>
+                <p class="mb-2"><span class="font-semibold">Meeting URL:</span> <span id="displayMeetingUrl"></span></p>
+                <p class="mb-2"><span class="font-semibold">Project ID:</span> <span id="displayProjectId"></span></p>
+                <p><span class="font-semibold">Status:</span> 
+                    <span class="inline-block w-3 h-3 rounded-full bg-warning mr-2"></span> Pending
+                </p>
             </div>
-            <div class="button-group">
-                <button id="checkStatusButton">Check Status</button>
-                <button id="startNewButton">Start New Transcription</button>
-                <button id="backToListButton">Back to Meeting List</button>
+            <div class="flex gap-3 flex-wrap">
+                <button id="checkStatusButton" class="px-5 py-3 bg-primary text-white rounded font-semibold transition-colors hover:bg-accent">Check Status</button>
+                <button id="startNewButton" class="px-5 py-3 bg-primary text-white rounded font-semibold transition-colors hover:bg-accent">Start New Transcription</button>
+                <button id="backToListButton" class="px-5 py-3 bg-primary text-white rounded font-semibold transition-colors hover:bg-accent">Back to Meeting List</button>
             </div>
         </div>
 
         <!-- Screen 3: Transcript Display -->
-        <div id="transcriptScreen" class="screen">
-            <h2>Meeting Transcript</h2>
-            <div class="meeting-details">
-                <h3>Meeting Details</h3>
-                <p><strong>Meeting URL:</strong> <span id="transcriptMeetingUrl"></span></p>
-                <p><strong>Project ID:</strong> <span id="transcriptProjectId"></span></p>
-                <p><strong>Meeting Date:</strong> <span id="transcriptMeetingDate"></span></p>
-                <p><strong>Status:</strong> <span class="status-indicator status-complete"></span> Complete</p>
+        <div id="transcriptScreen" class="screen bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-xl text-primary font-bold mb-5">Meeting Transcript</h2>
+            <div class="bg-gray-100 p-4 rounded mb-5">
+                <h3 class="font-bold mb-2">Meeting Details</h3>
+                <p class="mb-2"><span class="font-semibold">Meeting URL:</span> <span id="transcriptMeetingUrl"></span></p>
+                <p class="mb-2"><span class="font-semibold">Project ID:</span> <span id="transcriptProjectId"></span></p>
+                <p class="mb-2"><span class="font-semibold">Meeting Date:</span> <span id="transcriptMeetingDate"></span></p>
+                <p><span class="font-semibold">Status:</span> 
+                    <span class="status-indicator status-complet
+                </p>
             </div>
-            <div class="transcript-container" id="transcriptContent"></div>
-            <div class="button-group">
-                <button id="newTranscriptionButton">Start New Transcription</button>
-                <button id="backToListFromTranscriptButton">Back to Meeting List</button>
+            <div class="max-h-96 overflow-y-auto p-4 border border-gray-300 rounded bg-gray-100 mb-5 whitespace-pre-line" id="transcriptContent"></div>
+            <div class="flex gap-3 flex-wrap">
+                <button id="newTranscriptionButton" class="px-5 py-3 bg-primary text-white rounded font-semibold transition-colors hover:bg-accent">Start New Transcription</button>
+                <button id="backToListFromTranscriptButton" class="px-5 py-3 bg-primary text-white rounded font-semibold transition-colors hover:bg-accent">Back to Meeting List</button>
             </div>
         </div>
     </div>
 
-    <div id="notification" class="notification"></div>
+    <div id="notification" class="notification fixed top-5 right-5 p-4 bg-success text-white rounded shadow-lg opacity-0 transition-opacity duration-300 z-10"></div>
 
-    <footer>
+    <footer class="bg-white shadow-inner py-5 mt-8 text-center">
         <p>Fireflies Transcription Service &copy; 2025</p>
     </footer>
 
     <!-- Load the external JavaScript file -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+    <style>
+    /* We need to keep a few custom styles for JavaScript compatibility */
+    .screen {
+        display: none;
+    }
+    
+    .screen.active {
+        display: block;
+    }
+    
+    .notification.show {
+        opacity: 1;
+    }
+    
+    .filter-button.active {
+        background-color: #4a86e8;
+        color: white;
+        border-color: #4a86e8;
+    }
+    
+    /* Meeting card styles for JS compatibility */
+    .meeting-card {
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        position: relative;
+    }
+    
+    .meeting-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .status-badge {
+        position: absolute;
+        top: 0.625rem;
+        right: 0.625rem;
+        padding: 0.1875rem 0.5rem;
+        border-radius: 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .status-completed {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+    }
+    
+    .status-pending {
+        background-color: #fff8e1;
+        color: #f57f17;
+    }
+    
+    .status-indicator {
+        display: inline-block;
+        width: 0.75rem;
+        height: 0.75rem;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+    }
+    
+    .status-complete {
+        background-color: #4caf50;
+    }
+    
+    .status-pending {
+        background-color: #ffa000;
+    }
+    </style>
 </body>
 </html>
