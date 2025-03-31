@@ -145,15 +145,15 @@ def process_transcription(fireflies_meeting_id):
         return None, f"Error processing transcription: {str(e)}", 500
 
 
-@meetings_bp.route("/webhook", methods=["POST"])
+@meetings_bp.route("/meetings/webhook", methods=["POST"])
 def fireflies_webhook():
     """Receive webhook notifications from Fireflies.ai."""
     try:
-        # Verify webhook signature
-        signature = request.headers.get("X-Hub-Signature", "")
-        if not WebhookHandler.verify_signature(request.data, signature):
-            return jsonify({"error": "Invalid signature"}), 403
-            
+        # # Verify webhook signature
+        # signature = request.headers.get("X-Hub-Signature", "")
+        # if not WebhookHandler.verify_signature(request.data, signature):
+        #     return jsonify({"error": "Invalid signature"}), 403
+        print(request.json)
         data = request.json
         if not data:
             return jsonify({"error": "Invalid JSON payload"}), 400

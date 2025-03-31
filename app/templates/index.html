@@ -12,6 +12,10 @@
             --text-color: #333;
             --light-gray: #f5f5f5;
             --border-color: #ddd;
+            --success-color: #4caf50;
+            --warning-color: #ffa000;
+            --info-color: #03a9f4;
+            --error-color: #f44336;
         }
 
         * {
@@ -201,11 +205,11 @@
         }
 
         .status-pending {
-            background-color: #ffa000;
+            background-color: var(--warning-color);
         }
 
         .status-complete {
-            background-color: #4caf50;
+            background-color: var(--success-color);
         }
 
         .notification {
@@ -241,6 +245,7 @@
             margin-bottom: 15px;
             transition: transform 0.2s, box-shadow 0.2s;
             cursor: pointer;
+            position: relative;
         }
 
         .meeting-card:hover {
@@ -275,6 +280,68 @@
             background-color: #fff8e1;
             color: #f57f17;
         }
+
+        /* Status summary styles */
+        .status-summary {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            flex-wrap: wrap;
+        }
+
+        .status-summary-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+            margin-bottom: 5px;
+        }
+
+        .status-count {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-button {
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            background: white;
+            color: #333;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .filter-button:hover {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .filter-button.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -295,12 +362,25 @@
             </div>
         </div>
 
-        <!-- Meeting List Screen (NEW) -->
+        <!-- Meeting List Screen -->
         <div id="meetingListScreen" class="screen">
             <h2>Project Meetings</h2>
             <div class="meeting-details">
                 <p><strong>Project ID:</strong> <span id="listProjectId"></span></p>
             </div>
+            
+            <!-- Status Summary Section -->
+            <div class="status-summary" id="statusSummary">
+                <!-- Status counts will be populated here -->
+            </div>
+            
+            <!-- Filter Controls -->
+            <div class="filter-controls" id="filterControls">
+                <button class="filter-button active" data-filter="all">All Meetings</button>
+                <button class="filter-button" data-filter="completed">Completed</button>
+                <button class="filter-button" data-filter="pending">Pending</button>
+            </div>
+            
             <div id="meetingsList" class="meeting-list-container">
                 <!-- Meetings will be populated here -->
             </div>
@@ -342,6 +422,7 @@
             <div class="button-group">
                 <button id="checkStatusButton">Check Status</button>
                 <button id="startNewButton">Start New Transcription</button>
+                <button id="backToListButton">Back to Meeting List</button>
             </div>
         </div>
 
@@ -356,7 +437,10 @@
                 <p><strong>Status:</strong> <span class="status-indicator status-complete"></span> Complete</p>
             </div>
             <div class="transcript-container" id="transcriptContent"></div>
-            <button id="newTranscriptionButton">Start New Transcription</button>
+            <div class="button-group">
+                <button id="newTranscriptionButton">Start New Transcription</button>
+                <button id="backToListFromTranscriptButton">Back to Meeting List</button>
+            </div>
         </div>
     </div>
 
@@ -375,6 +459,8 @@
         let pollingInterval = null;
         let meetingData = {};
         let projectId = null;
+        let allMeetings = [];
+        let currentFilter = 'all';
 
         // DOM Elements
         const loaderScreen = document.getElementById('loaderScreen');
@@ -395,11 +481,15 @@
         
         const listProjectId = document.getElementById('listProjectId');
         const meetingsList = document.getElementById('meetingsList');
+        const statusSummary = document.getElementById('statusSummary');
+        const filterControls = document.getElementById('filterControls');
 
         const checkStatusButton = document.getElementById('checkStatusButton');
         const startNewButton = document.getElementById('startNewButton');
         const newTranscriptionButton = document.getElementById('newTranscriptionButton');
         const startNewFromListButton = document.getElementById('startNewFromListButton');
+        const backToListButton = document.getElementById('backToListButton');
+        const backToListFromTranscriptButton = document.getElementById('backToListFromTranscriptButton');
         
         const notification = document.getElementById('notification');
 
@@ -484,6 +574,138 @@
             return urlParams.get('meeting_id') || null;
         }
 
+        // Calculate status summary
+        function updateStatusSummary(meetings) {
+            // Count meetings by status
+            let totalCount = meetings.length;
+            let completedCount = 0;
+            let pendingCount = 0;
+            
+            meetings.forEach(meeting => {
+                if (meeting.transcription) {
+                    completedCount++;
+                } else {
+                    pendingCount++;
+                }
+            });
+            
+            // Update summary display
+            statusSummary.innerHTML = `
+                <div class="status-summary-item">
+                    <div class="status-count">${totalCount}</div>
+                    <div>Total Meetings</div>
+                </div>
+                <div class="status-summary-item">
+                    <div class="status-count">${completedCount}</div>
+                    <div><span class="status-indicator status-complete"></span>Completed</div>
+                </div>
+                <div class="status-summary-item">
+                    <div class="status-count">${pendingCount}</div>
+                    <div><span class="status-indicator status-pending"></span>Pending</div>
+                </div>
+            `;
+        }
+
+        // Filter meetings
+        function filterMeetings(filter) {
+            currentFilter = filter;
+            
+            // Update filter button states
+            const filterButtons = filterControls.querySelectorAll('.filter-button');
+            filterButtons.forEach(button => {
+                if (button.dataset.filter === filter) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+            
+            // Apply filter to meetings list
+            const filteredMeetings = allMeetings.filter(meeting => {
+                if (filter === 'all') return true;
+                if (filter === 'completed') return !!meeting.transcription;
+                if (filter === 'pending') return !meeting.transcription;
+                return true;
+            });
+            
+            // Update the display with filtered meetings
+            renderMeetingsList(filteredMeetings);
+        }
+
+        // Render the meetings list
+        function renderMeetingsList(meetings) {
+            // Clear the meetings list
+            meetingsList.innerHTML = '';
+            
+            if (meetings.length === 0) {
+                meetingsList.innerHTML = '<p>No meetings found matching the selected filter.</p>';
+                return;
+            }
+            
+            // Add each meeting to the list
+            meetings.forEach(meeting => {
+                const meetingCard = document.createElement('div');
+                meetingCard.className = 'meeting-card';
+                meetingCard.dataset.meetingId = meeting.id;
+                
+                // Create meeting title (use URL if no title available)
+                const title = document.createElement('h3');
+                let meetingTitle = "Meeting";
+                if (meeting.meeting_url) {
+                    // Extract the meeting code from URL as a simple title
+                    const urlParts = meeting.meeting_url.split('/');
+                    meetingTitle = `Meeting ${urlParts[urlParts.length - 1]}`;
+                }
+                
+                title.textContent = meetingTitle;
+                
+                // Add prominent status badge
+                const hasTranscript = !!meeting.transcription;
+                const statusBadge = document.createElement('div');
+                statusBadge.className = `status-badge ${hasTranscript ? 'status-completed' : 'status-pending'}`;
+                statusBadge.textContent = hasTranscript ? 'Completed' : 'Pending';
+                meetingCard.appendChild(statusBadge);
+                
+                // Add meeting details
+                const details = document.createElement('div');
+                details.innerHTML = `
+                    <p><strong>Date:</strong> ${formatDate(meeting.meeting_datetime)}</p>
+                    <p><strong>URL:</strong> ${meeting.meeting_url}</p>
+                    <p><strong>Status:</strong> 
+                        <span class="status-indicator ${hasTranscript ? 'status-complete' : 'status-pending'}"></span>
+                        ${hasTranscript ? 'Completed' : 'Pending'}
+                    </p>
+                `;
+                
+                // Build the card
+                meetingCard.appendChild(title);
+                meetingCard.appendChild(details);
+                
+                // Add click handler to view the meeting
+                meetingCard.addEventListener('click', () => {
+                    // Stop any existing polling
+                    stopPolling();
+                    
+                    // Set the current meeting
+                    currentMeetingId = meeting.id;
+                    meetingData = meeting;
+                    
+                    // Show the appropriate screen based on meeting status
+                    if (hasTranscript) {
+                        displayTranscript(meeting);
+                    } else {
+                        // Meeting is in progress
+                        displayMeetingUrl.textContent = meeting.meeting_url;
+                        displayProjectId.textContent = meeting.project_id;
+                        showScreen('waitingScreen');
+                        startPolling(currentMeetingId);
+                    }
+                });
+                
+                meetingsList.appendChild(meetingCard);
+            });
+        }
+
         // Get meetings by project ID using query parameter
         async function getMeetingsByProjectId(projectId) {
             try {
@@ -499,6 +721,24 @@
                 console.error('Error retrieving meetings for project:', error);
                 throw error;
             }
+        }
+
+        // Function to display the meetings list
+        function displayMeetingsList(meetings, projectId) {
+            // Save all meetings for filtering
+            allMeetings = meetings;
+            
+            // Update project ID display
+            listProjectId.textContent = projectId;
+            
+            // Update status summary
+            updateStatusSummary(meetings);
+            
+            // Apply current filter
+            filterMeetings(currentFilter);
+            
+            // Show the meetings list screen
+            showScreen('meetingListScreen');
         }
 
         // API interaction functions
@@ -548,12 +788,44 @@
                 if (meetingData.transcription) {
                     displayTranscript(meetingData);
                     stopPolling();
+                    
+                    // Update the meeting in the list if we're polling for status
+                    const meetingIndex = allMeetings.findIndex(m => m.id === meetingData.id);
+                    if (meetingIndex !== -1) {
+                        allMeetings[meetingIndex] = meetingData;
+                    }
+                    
                     return true;
                 }
                 
                 return false;
             } catch (error) {
                 console.warn('Error checking meeting status:', error);
+                return false;
+            }
+        }
+
+        // Refresh all meetings data
+        async function refreshMeetings() {
+            if (!projectId) return;
+            
+            try {
+                const meetings = await getMeetingsByProjectId(projectId);
+                
+                if (meetings && Array.isArray(meetings)) {
+                    // Update our meetings list
+                    allMeetings = meetings;
+                    
+                    // Update displays
+                    updateStatusSummary(meetings);
+                    filterMeetings(currentFilter);
+                    
+                    return true;
+                }
+                
+                return false;
+            } catch (error) {
+                console.error('Error refreshing meetings:', error);
                 return false;
             }
         }
@@ -610,80 +882,6 @@
             showScreen('transcriptScreen');
         }
 
-        // Function to display the meetings list
-        function displayMeetingsList(meetings, projectId) {
-            // Update project ID display
-            listProjectId.textContent = projectId;
-            
-            // Clear the meetings list
-            meetingsList.innerHTML = '';
-            
-            // Sort meetings by date (newest first)
-            meetings.sort((a, b) => {
-                return new Date(b.meeting_datetime) - new Date(a.meeting_datetime);
-            });
-            
-            // Add each meeting to the list
-            meetings.forEach(meeting => {
-                const meetingCard = document.createElement('div');
-                meetingCard.className = 'meeting-card';
-                meetingCard.dataset.meetingId = meeting.id;
-                
-                // Create meeting title (use URL if no title available)
-                const title = document.createElement('h3');
-                let meetingTitle = "Meeting";
-                if (meeting.meeting_url) {
-                    // Extract the meeting code from URL as a simple title
-                    const urlParts = meeting.meeting_url.split('/');
-                    meetingTitle = `Meeting ${urlParts[urlParts.length - 1]}`;
-                }
-                
-                // Add status indicator
-                const hasTranscript = !!meeting.transcription;
-                title.innerHTML = meetingTitle + 
-                    `<span class="meeting-status ${hasTranscript ? 'status-completed' : 'status-pending'}">
-                        ${hasTranscript ? 'Completed' : 'Pending'}
-                    </span>`;
-                
-                // Add meeting details
-                const details = document.createElement('div');
-                details.innerHTML = `
-                    <p><strong>Date:</strong> ${formatDate(meeting.meeting_datetime)}</p>
-                    <p><strong>URL:</strong> ${meeting.meeting_url}</p>
-                `;
-                
-                // Build the card
-                meetingCard.appendChild(title);
-                meetingCard.appendChild(details);
-                
-                // Add click handler to view the meeting
-                meetingCard.addEventListener('click', () => {
-                    // Stop any existing polling
-                    stopPolling();
-                    
-                    // Set the current meeting
-                    currentMeetingId = meeting.id;
-                    meetingData = meeting;
-                    
-                    // Show the appropriate screen based on meeting status
-                    if (hasTranscript) {
-                        displayTranscript(meeting);
-                    } else {
-                        // Meeting is in progress
-                        displayMeetingUrl.textContent = meeting.meeting_url;
-                        displayProjectId.textContent = meeting.project_id;
-                        showScreen('waitingScreen');
-                        startPolling(currentMeetingId);
-                    }
-                });
-                
-                meetingsList.appendChild(meetingCard);
-            });
-            
-            // Show the meetings list screen
-            showScreen('meetingListScreen');
-        }
-
         // Event Handlers
         meetingForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -731,6 +929,9 @@
                 // Update the waiting screen
                 displayMeetingUrl.textContent = googleMeetUrl;
                 displayProjectId.textContent = projectId;
+                
+                // Refresh meetings list
+                await refreshMeetings();
                 
                 // Switch to waiting screen
                 showScreen('waitingScreen');
@@ -785,6 +986,36 @@
             meetingData = {};
             showScreen('inputScreen');
         });
+        
+        backToListButton.addEventListener('click', async function() {
+            stopPolling();
+            showScreen('loaderScreen');
+            await refreshMeetings();
+            showScreen('meetingListScreen');
+        });
+        
+        backToListFromTranscriptButton.addEventListener('click', async function() {
+            showScreen('loaderScreen');
+            await refreshMeetings();
+            showScreen('meetingListScreen');
+        });
+        
+        // Set up filter button event listeners
+        filterControls.addEventListener('click', function(e) {
+            if (e.target.classList.contains('filter-button')) {
+                const filter = e.target.dataset.filter;
+                if (filter) {
+                    filterMeetings(filter);
+                }
+            }
+        });
+
+        // Auto-refresh meeting list every 30 seconds
+        setInterval(async () => {
+            if (meetingListScreen.classList.contains('active')) {
+                await refreshMeetings();
+            }
+        }, 30000);
 
         // Initialize the app with project data loading
         document.addEventListener('DOMContentLoaded', async function() {
@@ -825,33 +1056,16 @@
                     }
                 }
                 
-                // Second priority: Check for project_id and find the latest meeting
+                // Second priority: Check for project_id and show meeting list
                 if (projectId) {
                     try {
                         // Get meetings for this project
                         const projectMeetings = await getMeetingsByProjectId(projectId);
                         
                         if (projectMeetings && projectMeetings.length > 0) {
-                            // Sort by date to get the latest meeting
-                            const latestMeeting = projectMeetings.sort((a, b) => {
-                                return new Date(b.meeting_datetime) - new Date(a.meeting_datetime);
-                            })[0];
-                        
-                        // Save the meeting data
-                        currentMeetingId = latestMeeting.id;
-                        meetingData = latestMeeting;
-                        
-                        // Check if meeting has transcription
-                        if (latestMeeting.transcription) {
-                            displayTranscript(latestMeeting);
-                        } else {
-                            // Meeting is in progress
-                            displayMeetingUrl.textContent = latestMeeting.meeting_url;
-                            displayProjectId.textContent = projectId;
-                            showScreen('waitingScreen');
-                            startPolling(currentMeetingId);
-                        }
-                        return; // Exit initialization
+                            // Display the meetings list
+                            displayMeetingsList(projectMeetings, projectId);
+                            return; // Exit initialization
                         }
                     } catch (error) {
                         console.warn(`Could not find meetings for project: ${projectId}`, error);
