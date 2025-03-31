@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URI=postgresql://postgres:postgres@db:5432/fireflies_db
+      - FIREFLIES_API_KEY=${FIREFLIES_API_KEY}
+      - FIREFLIES_WEBHOOK_SECRET=${FIREFLIES_WEBHOOK_SECRET}
+      - FLASK_ENV=development  # Change to production for deployment
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  db:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=fireflies_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
