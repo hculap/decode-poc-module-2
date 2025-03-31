@@ -9,12 +9,16 @@ logger = logging.getLogger(__name__)
 meetings_bp = Blueprint('meetings', __name__)
 
 
-@meetings_bp.route("/meetings", methods=["POST"])
-def create_meeting():
+@meetings_bp.route("/meetings", methods=["GET", "POST"])
+def meetings_handler():
     """
-    Create a new meeting and invite Fireflies bot.
+    GET: Retrieve meetings with optional filtering
+    POST: Create a new meeting and invite Fireflies bot
     
-    Expected JSON body:
+    For GET requests, supports query parameters:
+    - project_id: Filter meetings by project ID
+    
+    For POST requests, expected JSON body:
     {
         "project_id": "1234",
         "google_meet_url": "https://meet.google.com/abc-defg-hij",
@@ -22,50 +26,70 @@ def create_meeting():
         "duration": 45  # Optional duration in minutes
     }
     """
-    try:
-        # Parse and validate request JSON
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Invalid JSON body"}), 400
+    if request.method == "GET":
+        try:
+            # Check for query parameters
+            project_id = request.args.get('project_id')
             
-        if 'project_id' not in data:
-            return jsonify({"error": "Missing required field: project_id"}), 400
+            # Build query based on filters
+            query = Meeting.query
             
-        if 'google_meet_url' not in data:
-            return jsonify({"error": "Missing required field: google_meet_url"}), 400
+            if project_id:
+                query = query.filter(Meeting.project_id == project_id)
+                
+            # Execute query and return results
+            meetings = query.all()
+            return jsonify([meeting.to_dict() for meeting in meetings]), 200
             
-        project_id = data["project_id"]
-        meeting_url = data["google_meet_url"]
-        title = data.get("title")
-        duration = data.get("duration")
-        
-        # Check if this is a valid Google Meet URL
-        if not meeting_url.startswith("https://meet.google.com/"):
-            return jsonify({"error": "Invalid Google Meet URL"}), 400
-        
-        # Add Fireflies bot to the meeting
-        success = FirefliesService.add_bot_to_meeting(meeting_url, title=title, duration=duration)
-        if not success:
-            return jsonify({"error": "Failed to add Fireflies bot to the meeting"}), 400
-        
-        # Store meeting record in DB
-        new_meeting = Meeting(
-            project_id=project_id,
-            meeting_url=meeting_url,
-            meeting_datetime=datetime.utcnow()
-        )
-        db.session.add(new_meeting)
-        db.session.commit()
-        
-        return jsonify({
-            "status": "ok",
-            "id": new_meeting.id,
-            "project_id": project_id,
-            "meeting_url": meeting_url
-        }), 201
-    except Exception as e:
-        logger.exception("Error creating meeting")
-        return jsonify({"error": "Internal server error"}), 500
+        except Exception as e:
+            logger.exception("Error retrieving meetings")
+            return jsonify({"error": "Internal server error"}), 500
+    
+    elif request.method == "POST":
+        try:
+            # Parse and validate request JSON
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "Invalid JSON body"}), 400
+                
+            if 'project_id' not in data:
+                return jsonify({"error": "Missing required field: project_id"}), 400
+                
+            if 'google_meet_url' not in data:
+                return jsonify({"error": "Missing required field: google_meet_url"}), 400
+                
+            project_id = data["project_id"]
+            meeting_url = data["google_meet_url"]
+            title = data.get("title")
+            duration = data.get("duration")
+            
+            # Check if this is a valid Google Meet URL
+            if not meeting_url.startswith("https://meet.google.com/"):
+                return jsonify({"error": "Invalid Google Meet URL"}), 400
+            
+            # Add Fireflies bot to the meeting
+            success = FirefliesService.add_bot_to_meeting(meeting_url, title=title, duration=duration)
+            if not success:
+                return jsonify({"error": "Failed to add Fireflies bot to the meeting"}), 400
+            
+            # Store meeting record in DB
+            new_meeting = Meeting(
+                project_id=project_id,
+                meeting_url=meeting_url,
+                meeting_datetime=datetime.utcnow()
+            )
+            db.session.add(new_meeting)
+            db.session.commit()
+            
+            return jsonify({
+                "status": "ok",
+                "id": new_meeting.id,
+                "project_id": project_id,
+                "meeting_url": meeting_url
+            }), 201
+        except Exception as e:
+            logger.exception("Error creating meeting")
+            return jsonify({"error": "Internal server error"}), 500
 
 
 def process_transcription(fireflies_meeting_id):

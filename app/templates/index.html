@@ -225,6 +225,56 @@
         .notification.show {
             opacity: 1;
         }
+
+        /* Styles for meeting list */
+        .meeting-list-container {
+            margin-bottom: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .meeting-card {
+            background-color: white;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .meeting-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .meeting-card h3 {
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .meeting-card p {
+            margin-bottom: 5px;
+        }
+
+        .meeting-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-completed {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status-pending {
+            background-color: #fff8e1;
+            color: #f57f17;
+        }
     </style>
 </head>
 <body>
@@ -236,8 +286,31 @@
         <!-- Error message display -->
         <div id="errorMessage" class="error-message"></div>
 
-        <!-- Screen 1: Input Form -->
-        <div id="inputScreen" class="screen active">
+        <!-- Initial Loading Screen -->
+        <div id="loaderScreen" class="screen active">
+            <div class="loading">
+                <div class="loading-animation"></div>
+                <p>Loading project data...</p>
+                <p>Please wait while we retrieve your meeting information.</p>
+            </div>
+        </div>
+
+        <!-- Meeting List Screen (NEW) -->
+        <div id="meetingListScreen" class="screen">
+            <h2>Project Meetings</h2>
+            <div class="meeting-details">
+                <p><strong>Project ID:</strong> <span id="listProjectId"></span></p>
+            </div>
+            <div id="meetingsList" class="meeting-list-container">
+                <!-- Meetings will be populated here -->
+            </div>
+            <div class="button-group">
+                <button id="startNewFromListButton">Start New Meeting</button>
+            </div>
+        </div>
+
+        <!-- Input Form Screen -->
+        <div id="inputScreen" class="screen">
             <h2>Start a Meeting Transcription</h2>
             <form id="meetingForm">
                 <div class="form-group">
@@ -304,9 +377,11 @@
         let projectId = null;
 
         // DOM Elements
+        const loaderScreen = document.getElementById('loaderScreen');
         const inputScreen = document.getElementById('inputScreen');
         const waitingScreen = document.getElementById('waitingScreen');
         const transcriptScreen = document.getElementById('transcriptScreen');
+        const meetingListScreen = document.getElementById('meetingListScreen');
         const errorMessageEl = document.getElementById('errorMessage');
         const meetingForm = document.getElementById('meetingForm');
         
@@ -317,19 +392,25 @@
         const transcriptProjectId = document.getElementById('transcriptProjectId');
         const transcriptMeetingDate = document.getElementById('transcriptMeetingDate');
         const transcriptContent = document.getElementById('transcriptContent');
+        
+        const listProjectId = document.getElementById('listProjectId');
+        const meetingsList = document.getElementById('meetingsList');
 
         const checkStatusButton = document.getElementById('checkStatusButton');
         const startNewButton = document.getElementById('startNewButton');
         const newTranscriptionButton = document.getElementById('newTranscriptionButton');
+        const startNewFromListButton = document.getElementById('startNewFromListButton');
         
         const notification = document.getElementById('notification');
 
         // Helper functions
         function showScreen(screenId) {
             // Hide all screens
+            loaderScreen.classList.remove('active');
             inputScreen.classList.remove('active');
             waitingScreen.classList.remove('active');
             transcriptScreen.classList.remove('active');
+            meetingListScreen.classList.remove('active');
 
             // Show the requested screen
             document.getElementById(screenId).classList.add('active');
@@ -392,10 +473,32 @@
             }
         }
 
-        // Get project ID from URL parameters
+        // Get parameters from URL
         function getProjectIdFromUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get('project_id') || null;
+        }
+
+        function getMeetingIdFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('meeting_id') || null;
+        }
+
+        // Get meetings by project ID using query parameter
+        async function getMeetingsByProjectId(projectId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/meetings?project_id=${projectId}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to retrieve meetings for project');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Error retrieving meetings for project:', error);
+                throw error;
+            }
         }
 
         // API interaction functions
@@ -507,6 +610,80 @@
             showScreen('transcriptScreen');
         }
 
+        // Function to display the meetings list
+        function displayMeetingsList(meetings, projectId) {
+            // Update project ID display
+            listProjectId.textContent = projectId;
+            
+            // Clear the meetings list
+            meetingsList.innerHTML = '';
+            
+            // Sort meetings by date (newest first)
+            meetings.sort((a, b) => {
+                return new Date(b.meeting_datetime) - new Date(a.meeting_datetime);
+            });
+            
+            // Add each meeting to the list
+            meetings.forEach(meeting => {
+                const meetingCard = document.createElement('div');
+                meetingCard.className = 'meeting-card';
+                meetingCard.dataset.meetingId = meeting.id;
+                
+                // Create meeting title (use URL if no title available)
+                const title = document.createElement('h3');
+                let meetingTitle = "Meeting";
+                if (meeting.meeting_url) {
+                    // Extract the meeting code from URL as a simple title
+                    const urlParts = meeting.meeting_url.split('/');
+                    meetingTitle = `Meeting ${urlParts[urlParts.length - 1]}`;
+                }
+                
+                // Add status indicator
+                const hasTranscript = !!meeting.transcription;
+                title.innerHTML = meetingTitle + 
+                    `<span class="meeting-status ${hasTranscript ? 'status-completed' : 'status-pending'}">
+                        ${hasTranscript ? 'Completed' : 'Pending'}
+                    </span>`;
+                
+                // Add meeting details
+                const details = document.createElement('div');
+                details.innerHTML = `
+                    <p><strong>Date:</strong> ${formatDate(meeting.meeting_datetime)}</p>
+                    <p><strong>URL:</strong> ${meeting.meeting_url}</p>
+                `;
+                
+                // Build the card
+                meetingCard.appendChild(title);
+                meetingCard.appendChild(details);
+                
+                // Add click handler to view the meeting
+                meetingCard.addEventListener('click', () => {
+                    // Stop any existing polling
+                    stopPolling();
+                    
+                    // Set the current meeting
+                    currentMeetingId = meeting.id;
+                    meetingData = meeting;
+                    
+                    // Show the appropriate screen based on meeting status
+                    if (hasTranscript) {
+                        displayTranscript(meeting);
+                    } else {
+                        // Meeting is in progress
+                        displayMeetingUrl.textContent = meeting.meeting_url;
+                        displayProjectId.textContent = meeting.project_id;
+                        showScreen('waitingScreen');
+                        startPolling(currentMeetingId);
+                    }
+                });
+                
+                meetingsList.appendChild(meetingCard);
+            });
+            
+            // Show the meetings list screen
+            showScreen('meetingListScreen');
+        }
+
         // Event Handlers
         meetingForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -541,6 +718,9 @@
             }
             
             try {
+                // Show loader while creating meeting
+                showScreen('loaderScreen');
+                
                 // Create the meeting
                 const response = await createMeeting(meetingData);
                 
@@ -561,6 +741,7 @@
                 showNotification('Meeting transcription started');
             } catch (error) {
                 showError(error.message || 'Failed to start meeting transcription');
+                showScreen('inputScreen');
             }
         });
 
@@ -571,12 +752,18 @@
             }
             
             try {
+                // Show loader while checking status
+                showScreen('loaderScreen');
+                
                 const hasTranscript = await checkMeetingStatus(currentMeetingId);
+                
                 if (!hasTranscript) {
                     showNotification('Transcript not ready yet. Still waiting...');
+                    showScreen('waitingScreen');
                 }
             } catch (error) {
                 showError(error.message || 'Failed to check meeting status');
+                showScreen('waitingScreen');
             }
         });
 
@@ -592,12 +779,94 @@
             meetingData = {};
             showScreen('inputScreen');
         });
-
-        // Initialize the app
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check for project ID on page load
-            projectId = getProjectIdFromUrl();
+        
+        startNewFromListButton.addEventListener('click', function() {
+            currentMeetingId = null;
+            meetingData = {};
             showScreen('inputScreen');
+        });
+
+        // Initialize the app with project data loading
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Always start with the loader screen
+            showScreen('loaderScreen');
+            
+            try {
+                // Get parameters from URL
+                projectId = getProjectIdFromUrl();
+                const urlMeetingId = getMeetingIdFromUrl();
+                
+                // First priority: Check if a specific meeting ID is provided
+                if (urlMeetingId) {
+                    try {
+                        const meeting = await getMeeting(urlMeetingId);
+                        
+                        if (meeting) {
+                            // Save the meeting data
+                            currentMeetingId = meeting.id;
+                            meetingData = meeting;
+                            projectId = meeting.project_id;
+                            
+                            // Check if meeting has transcription
+                            if (meeting.transcription) {
+                                displayTranscript(meeting);
+                            } else {
+                                // Meeting is in progress
+                                displayMeetingUrl.textContent = meeting.meeting_url;
+                                displayProjectId.textContent = meeting.project_id;
+                                showScreen('waitingScreen');
+                                startPolling(currentMeetingId);
+                            }
+                            return; // Exit initialization
+                        }
+                    } catch (error) {
+                        console.warn(`Could not find meeting with ID: ${urlMeetingId}`, error);
+                        // Continue with project_id check
+                    }
+                }
+                
+                // Second priority: Check for project_id and find the latest meeting
+                if (projectId) {
+                    try {
+                        // Get meetings for this project
+                        const projectMeetings = await getMeetingsByProjectId(projectId);
+                        
+                        if (projectMeetings && projectMeetings.length > 0) {
+                            // Sort by date to get the latest meeting
+                            const latestMeeting = projectMeetings.sort((a, b) => {
+                                return new Date(b.meeting_datetime) - new Date(a.meeting_datetime);
+                            })[0];
+                        
+                        // Save the meeting data
+                        currentMeetingId = latestMeeting.id;
+                        meetingData = latestMeeting;
+                        
+                        // Check if meeting has transcription
+                        if (latestMeeting.transcription) {
+                            displayTranscript(latestMeeting);
+                        } else {
+                            // Meeting is in progress
+                            displayMeetingUrl.textContent = latestMeeting.meeting_url;
+                            displayProjectId.textContent = projectId;
+                            showScreen('waitingScreen');
+                            startPolling(currentMeetingId);
+                        }
+                        return; // Exit initialization
+                        }
+                    } catch (error) {
+                        console.warn(`Could not find meetings for project: ${projectId}`, error);
+                        // If we can't find meetings, will show the input form
+                    }
+                }
+                
+                // If we get here, show the input form
+                showScreen('inputScreen');
+                
+            } catch (error) {
+                console.error('Error during initialization:', error);
+                showError('Failed to load application data. Please refresh the page.');
+                showScreen('inputScreen');
+            }
         });
     </script>
 </body>
