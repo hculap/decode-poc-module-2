@@ -544,7 +544,7 @@
             }).format(date);
         }
 
-        function startPolling(meetingId) {
+        function startPolling(projectId, meetingId) {
             // Clear any existing interval
             if (pollingInterval) {
                 clearInterval(pollingInterval);
@@ -552,7 +552,7 @@
             
             // Set up polling every 10 seconds
             pollingInterval = setInterval(() => {
-                checkMeetingStatus(meetingId);
+                checkMeetingStatus(projectId, meetingId);
             }, 10000);
         }
 
@@ -698,7 +698,7 @@
                         displayMeetingUrl.textContent = meeting.meeting_url;
                         displayProjectId.textContent = meeting.project_id;
                         showScreen('waitingScreen');
-                        startPolling(currentMeetingId);
+                        startPolling(meeting.project_id, currentMeetingId);
                     }
                 });
                 
@@ -706,10 +706,10 @@
             });
         }
 
-        // Get meetings by project ID using query parameter
+        // Get meetings by project ID
         async function getMeetingsByProjectId(projectId) {
             try {
-                const response = await fetch(`${API_BASE_URL}/meetings?project_id=${projectId}`);
+                const response = await fetch(`${API_BASE_URL}/projects/${projectId}/meetings`);
                 
                 if (!response.ok) {
                     const errorData = await response.json();
@@ -742,9 +742,9 @@
         }
 
         // API interaction functions
-        async function createMeeting(meetingData) {
+        async function createMeeting(projectId, meetingData) {
             try {
-                const response = await fetch(`${API_BASE_URL}/meetings`, {
+                const response = await fetch(`${API_BASE_URL}/projects/${projectId}/meetings`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -764,9 +764,9 @@
             }
         }
 
-        async function getMeeting(meetingId) {
+        async function getMeeting(projectId, meetingId) {
             try {
-                const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}`);
+                const response = await fetch(`${API_BASE_URL}/projects/${projectId}/meetings/${meetingId}`);
                 
                 if (!response.ok) {
                     const errorData = await response.json();
@@ -780,9 +780,9 @@
             }
         }
 
-        async function checkMeetingStatus(meetingId) {
+        async function checkMeetingStatus(projectId, meetingId) {
             try {
-                const meetingData = await getMeeting(meetingId);
+                const meetingData = await getMeeting(projectId, meetingId);
                 
                 // If we have a transcription, show it
                 if (meetingData.transcription) {
@@ -907,7 +907,6 @@
             
             // Prepare meeting data
             const meetingData = {
-                project_id: projectId,
                 google_meet_url: googleMeetUrl
             };
             
@@ -920,7 +919,7 @@
                 showScreen('loaderScreen');
                 
                 // Create the meeting
-                const response = await createMeeting(meetingData);
+                const response = await createMeeting(projectId, meetingData);
                 
                 // Save the meeting ID and data
                 currentMeetingId = response.id;
@@ -937,7 +936,7 @@
                 showScreen('waitingScreen');
                 
                 // Start polling for updates
-                startPolling(currentMeetingId);
+                startPolling(projectId, currentMeetingId);
                 
                 showNotification('Meeting transcription started');
             } catch (error) {
@@ -947,7 +946,7 @@
         });
 
         checkStatusButton.addEventListener('click', async function() {
-            if (!currentMeetingId) {
+            if (!currentMeetingId || !projectId) {
                 showError('No active meeting to check');
                 return;
             }
@@ -956,7 +955,7 @@
                 // Show loader while checking status
                 showScreen('loaderScreen');
                 
-                const hasTranscript = await checkMeetingStatus(currentMeetingId);
+                const hasTranscript = await checkMeetingStatus(projectId, currentMeetingId);
                 
                 if (!hasTranscript) {
                     showNotification('Transcript not ready yet. Still waiting...');
@@ -1028,15 +1027,14 @@
                 const urlMeetingId = getMeetingIdFromUrl();
                 
                 // First priority: Check if a specific meeting ID is provided
-                if (urlMeetingId) {
+                if (projectId && urlMeetingId) {
                     try {
-                        const meeting = await getMeeting(urlMeetingId);
+                        const meeting = await getMeeting(projectId, urlMeetingId);
                         
                         if (meeting) {
                             // Save the meeting data
                             currentMeetingId = meeting.id;
                             meetingData = meeting;
-                            projectId = meeting.project_id;
                             
                             // Check if meeting has transcription
                             if (meeting.transcription) {
@@ -1046,7 +1044,7 @@
                                 displayMeetingUrl.textContent = meeting.meeting_url;
                                 displayProjectId.textContent = meeting.project_id;
                                 showScreen('waitingScreen');
-                                startPolling(currentMeetingId);
+                                startPolling(projectId, currentMeetingId);
                             }
                             return; // Exit initialization
                         }
