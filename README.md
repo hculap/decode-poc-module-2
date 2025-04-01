@@ -25,28 +25,8 @@ A Flask-based web application that integrates with Fireflies.ai to provide autom
 
 ## 🚀 Installation
 
-### Using Docker (Recommended)
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/fireflies-transcription-service.git
-   cd fireflies-transcription-service
-   ```
-
-2. Copy the example environment file and update with your configuration:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys and configuration
-   ```
-
-3. Start the service using Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
-
-4. Access the application at `http://localhost:5000`
-
-### Manual Installation
+### Manual Installation (Recommended)
 
 1. Clone the repository:
    ```bash
@@ -91,6 +71,27 @@ A Flask-based web application that integrates with Fireflies.ai to provide autom
    ```
 
 7. Access the application at `http://localhost:5000`
+
+### Using Docker (Experimental)
+
+1. Clone the repository:
+   ```bash
+   git clone git@github.com:hculap/decode-poc-module-2.git
+   cd decode-poc-module-2
+   ```
+
+2. Copy the example environment file and update with your configuration:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and configuration
+   ```
+
+3. Start the service using Docker Compose:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. Access the application at `http://localhost:5000`
 
 ## ⚙️ Configuration
 
@@ -228,7 +229,7 @@ python test_fireflies_service.py
 
 For issues or questions:
 - Open a GitHub issue
-- Contact the maintainers at [your-email@example.com]
+- Contact the maintainers at [kontakt@szymonpaluch.com]
 
 ## 📄 License
 
