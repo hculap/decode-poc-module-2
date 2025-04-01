@@ -33,6 +33,9 @@ class Config:
     # Module 1  Service
     PROJECT_BRIEF_SERVICE_URL = os.getenv("PROJECT_BRIEF_SERVICE_URL", "http://localhost:80001")
     
+    # OpenAI
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    ENABLE_BRIEF_VALIDATION = os.getenv("ENABLE_BRIEF_VALIDATION", "false").lower() == "true"
 
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')

@@ -335,12 +335,12 @@ function renderProjectDetails(screenType) {
         return;
     }
     
-    // Create sections for Requirements and Feedback/Questions
+    // Create sections for Requirements, Feedback/Questions, and Validation
     const requirementsSection = document.createElement('div');
     requirementsSection.className = 'project-details mb-4';
     
     const questionsSection = document.createElement('div');
-    questionsSection.className = 'project-details';
+    questionsSection.className = 'project-details mb-4';
     
     // Requirements Section
     const requirementsHeader = document.createElement('div');
@@ -374,9 +374,35 @@ function renderProjectDetails(screenType) {
     questionsSection.appendChild(questionsHeader);
     questionsSection.appendChild(questionsContent);
     
-    // Add everything to container
+    // Add Requirements and Questions to container
     container.appendChild(requirementsSection);
     container.appendChild(questionsSection);
+    
+    // If validation results exist, add a Validation section
+    if (projectData.validation && projectData.validation.ValidationReport) {
+        const validationSection = document.createElement('div');
+        validationSection.className = 'project-details mb-4';
+        
+        const validationHeader = document.createElement('div');
+        validationHeader.className = 'project-details-header';
+        validationHeader.innerHTML = `
+            <h3>Brief Validation</h3>
+            <button class="project-details-toggle" data-target="validation-content">Show/Hide</button>
+        `;
+        
+        const validationContent = document.createElement('div');
+        validationContent.id = 'validation-content';
+        validationContent.className = 'project-details-content validation-report';
+        
+        // Render validation report
+        validationContent.appendChild(renderValidationReport(projectData.validation.ValidationReport));
+        
+        validationSection.appendChild(validationHeader);
+        validationSection.appendChild(validationContent);
+        
+        // Add Validation section to container
+        container.appendChild(validationSection);
+    }
     
     // Add toggle functionality to show/hide buttons
     container.querySelectorAll('.project-details-toggle').forEach(button => {
@@ -392,6 +418,120 @@ function renderProjectDetails(screenType) {
             }
         });
     });
+}
+
+// Render validation report as HTML
+function renderValidationReport(validationReport) {
+    const container = document.createElement('div');
+    container.className = 'validation-container';
+    
+    // Add validation summary
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'validation-summary mb-4';
+    
+    // Count statuses
+    let fullCount = 0;
+    let partialCount = 0;
+    let missingCount = 0;
+    
+    // Process top-level sections first
+    Object.entries(validationReport).forEach(([key, value]) => {
+        if (key === 'Requirements') return; // Handle separately
+        
+        if (value.status === 'Fully Addressed') fullCount++;
+        else if (value.status === 'Partially Addressed') partialCount++;
+        else if (value.status === 'Missing') missingCount++;
+    });
+    
+    // Process Requirements subsections
+    if (validationReport.Requirements) {
+        Object.values(validationReport.Requirements).forEach(value => {
+            if (value.status === 'Fully Addressed') fullCount++;
+            else if (value.status === 'Partially Addressed') partialCount++;
+            else if (value.status === 'Missing') missingCount++;
+        });
+    }
+    
+    // Create summary HTML
+    summaryDiv.innerHTML = `
+        <div class="font-bold mb-2">Validation Summary:</div>
+        <div class="flex flex-wrap gap-3">
+            <div class="status-badge-full">${fullCount} Fully Addressed</div>
+            <div class="status-badge-partial">${partialCount} Partially Addressed</div>
+            <div class="status-badge-missing">${missingCount} Missing</div>
+        </div>
+    `;
+    
+    container.appendChild(summaryDiv);
+    
+    // Add validation details table
+    const tableDiv = document.createElement('div');
+    tableDiv.className = 'validation-details';
+    
+    const table = document.createElement('table');
+    table.className = 'validation-table';
+    
+    // Create table header
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th class="validation-section">Section</th>
+            <th class="validation-status">Status</th>
+            <th class="validation-notes">Notes</th>
+        </tr>
+    `;
+    table.appendChild(thead);
+    
+    // Create table body
+    const tbody = document.createElement('tbody');
+    
+    // Process main sections (except Requirements)
+    Object.entries(validationReport).forEach(([key, value]) => {
+        if (key === 'Requirements') return; // Handle separately
+        
+        const formattedKey = key.replace(/([A-Z])/g, ' $1').trim();
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="validation-section">${formattedKey}</td>
+            <td class="validation-status">
+                <span class="status-indicator-${value.status.toLowerCase().replace(' ', '-')}">${value.status}</span>
+            </td>
+            <td class="validation-notes">
+                <ul class="validation-notes-list">
+                    ${value.notes.map(note => `<li>${note}</li>`).join('')}
+                </ul>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Process Requirements subsections
+    if (validationReport.Requirements) {
+        Object.entries(validationReport.Requirements).forEach(([key, value]) => {
+            const formattedKey = `Requirements: ${key.replace(/([A-Z])/g, ' $1').trim()}`;
+            
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="validation-section">${formattedKey}</td>
+                <td class="validation-status">
+                    <span class="status-indicator-${value.status.toLowerCase().replace(' ', '-')}">${value.status}</span>
+                </td>
+                <td class="validation-notes">
+                    <ul class="validation-notes-list">
+                        ${value.notes.map(note => `<li>${note}</li>`).join('')}
+                    </ul>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+    
+    table.appendChild(tbody);
+    tableDiv.appendChild(table);
+    container.appendChild(tableDiv);
+    
+    return container;
 }
 
 // Function to display the meetings list
