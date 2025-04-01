@@ -73,13 +73,12 @@ class ProjectBriefService:
             return None
             
     @staticmethod
-    def validate_project_brief(project_id, force_validation=False):
+    def validate_project_brief(project_id):
         """
         Validates a project brief using OpenAI API.
         
         Args:
             project_id (str): ID of the project to validate
-            force_validation (bool): Whether to force validation even if cached validation exists
             
         Returns:
             dict: Validation results or None if error
@@ -92,7 +91,7 @@ class ProjectBriefService:
         # Check if OpenAI API key is configured
         if not current_app.config.get('OPENAI_API_KEY'):
             logger.error("OpenAI API key is not configured")
-            return {"error": "OpenAI API key is not configured", "error_type": "configuration"}
+            return {"error": "OpenAI API key is not configured"}
             
         # Get the project data
         project = Project.query.filter_by(project_id=project_id).first()
@@ -102,14 +101,51 @@ class ProjectBriefService:
             return None
         
         # Check if validation was already done and is not too old (72 hours)
-        # Skip this check if force_validation is True
-        if not force_validation and project.validation_data and project.last_updated and (datetime.utcnow() - project.last_updated).total_seconds() < 259200:
+        if project.validation_data and project.last_updated and (datetime.utcnow() - project.last_updated).total_seconds() < 259200:
             try:
-                validation_data = json.loads(project.validation_data)
-                # Check if the validation data contains an error related to quota
-                if isinstance(validation_data, dict) and validation_data.get("error_type") == "quota_exceeded":
-                    # If quota was exceeded, return the cached validation with a note
-                    logger.info(f"Using cached validation data for project {project_id} despite quota error")
-                    validation_data["cached_result"] = True
-                return validation_data
-            except json
+                return json.loads(project.validation_data)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid validation data for project {project_id}, will re-validate")
+        
+        try:
+            # Load the system prompt
+            system_prompt_path = os.path.join('app', 'brief_validation_ai_agent_system_prompt.md')
+            if not os.path.exists(system_prompt_path):
+                logger.error(f"System prompt file not found at {system_prompt_path}")
+                return {"error": "System prompt file not found"}
+                
+            with open(system_prompt_path, 'r') as f:
+                system_prompt = f.read()
+                
+            # Load the reference template
+            reference_template_path = os.path.join('app', 'project_brief_reference_template.md')
+            if not os.path.exists(reference_template_path):
+                logger.error(f"Reference template file not found at {reference_template_path}")
+                return {"error": "Reference template file not found"}
+                
+            with open(reference_template_path, 'r') as f:
+                reference_template = f.read()
+                
+            # Prepare project data for validation
+            project_data = {
+                "project_id": project.project_id,
+                "requirements": project.requirements,
+                "questions": project.questions
+            }
+            
+            # Call OpenAI service for validation
+            validation_result = OpenAIService.validate_project_brief(
+                project_data, 
+                system_prompt, 
+                reference_template
+            )
+            
+            if validation_result and "error" not in validation_result:
+                # Save validation results to database
+                project.validation_data = json.dumps(validation_result)
+                db.session.commit()
+                
+            return validation_result
+        except Exception as e:
+            logger.error(f"Error validating project brief: {str(e)}")
+            return {"error": f"Error validating project brief: {str(e)}"}
