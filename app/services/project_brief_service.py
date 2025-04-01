@@ -3,7 +3,9 @@ import json
 from flask import current_app
 import logging
 from datetime import datetime
+import os
 from app.models import db, Project
+from app.services.openai_service import OpenAIService
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +73,27 @@ class ProjectBriefService:
             return None
             
     @staticmethod
-    def validate_project_brief(project_id):
+    def validate_project_brief(project_id, force_validation=False):
         """
         Validates a project brief using OpenAI API.
         
         Args:
             project_id (str): ID of the project to validate
+            force_validation (bool): Whether to force validation even if cached validation exists
             
         Returns:
             dict: Validation results or None if error
         """
+        # Check if validation is enabled
+        if not current_app.config.get('ENABLE_BRIEF_VALIDATION', False):
+            logger.info("Brief validation is disabled")
+            return None
+            
+        # Check if OpenAI API key is configured
+        if not current_app.config.get('OPENAI_API_KEY'):
+            logger.error("OpenAI API key is not configured")
+            return {"error": "OpenAI API key is not configured", "error_type": "configuration"}
+            
         # Get the project data
         project = Project.query.filter_by(project_id=project_id).first()
         
@@ -89,42 +102,14 @@ class ProjectBriefService:
             return None
         
         # Check if validation was already done and is not too old (72 hours)
-        if project.validation_data and project.last_updated and (datetime.utcnow() - project.last_updated).total_seconds() < 259200:
+        # Skip this check if force_validation is True
+        if not force_validation and project.validation_data and project.last_updated and (datetime.utcnow() - project.last_updated).total_seconds() < 259200:
             try:
-                return json.loads(project.validation_data)
-            except json.JSONDecodeError:
-                logger.warning(f"Invalid validation data for project {project_id}, will re-validate")
-        
-        # Load the prompt template for OpenAI
-        try:
-            with open('brief_validation_ai_agent_system_prompt.md', 'r') as f:
-                prompt_template = f.read()
-                
-            # This would be replaced with an actual OpenAI API call 
-            # For now, we'll just create a sample validation result
-            validation_result = {
-                "ValidationReport": {
-                    "ExecutiveSummary": {
-                        "status": "Partially Addressed",
-                        "notes": [
-                            "The executive summary provides an overview but lacks details on expected ROI."
-                        ]
-                    },
-                    "ProjectBackground": {
-                        "status": "Fully Addressed",
-                        "notes": [
-                            "All key details are covered."
-                        ]
-                    },
-                    # Other validation sections would be filled here
-                }
-            }
-            
-            # Save validation results to database
-            project.validation_data = json.dumps(validation_result)
-            db.session.commit()
-            
-            return validation_result
-        except Exception as e:
-            logger.error(f"Error validating project brief: {str(e)}")
-            return None
+                validation_data = json.loads(project.validation_data)
+                # Check if the validation data contains an error related to quota
+                if isinstance(validation_data, dict) and validation_data.get("error_type") == "quota_exceeded":
+                    # If quota was exceeded, return the cached validation with a note
+                    logger.info(f"Using cached validation data for project {project_id} despite quota error")
+                    validation_data["cached_result"] = True
+                return validation_data
+            except json

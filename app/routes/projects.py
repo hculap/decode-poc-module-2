@@ -30,20 +30,22 @@ def get_project(project_id):
         if not project_data:
             return jsonify({"error": "Failed to retrieve project data"}), 404
         
-        # If this project doesn't have validation data yet, generate it
-        if 'validation' not in project_data or not project_data['validation']:
-            # Only validate if the feature is enabled and we have requirements
-            if current_app.config.get('ENABLE_BRIEF_VALIDATION', False) and 'requirements' in project_data and project_data['requirements']:
-                validation_data = ProjectBriefService.validate_project_brief(project_id)
-                if validation_data:
-                    project_data['validation'] = validation_data
+        # If this project doesn't have validation data yet, generate it if enabled
+        if current_app.config.get('ENABLE_BRIEF_VALIDATION', False) and current_app.config.get('OPENAI_API_KEY'):
+            if 'validation' not in project_data or not project_data.get('validation'):
+                # Only validate if we have requirements
+                if 'requirements' in project_data and project_data.get('requirements'):
+                    logger.info(f"Generating validation for project {project_id}")
+                    validation_data = ProjectBriefService.validate_project_brief(project_id)
+                    if validation_data and not isinstance(validation_data, dict) or "error" not in validation_data:
+                        project_data['validation'] = validation_data
             
         # Return the project data (should contain id, requirements, questions, validation fields)
         return jsonify(project_data), 200
             
     except Exception as e:
         logger.exception(f"Error retrieving project data for project ID {project_id}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
 @projects_bp.route("/projects/<project_id>/validate", methods=["POST"])
@@ -58,6 +60,14 @@ def validate_project(project_id):
     - JSON with validation results
     """
     try:
+        # Check if validation is enabled
+        if not current_app.config.get('ENABLE_BRIEF_VALIDATION', False):
+            return jsonify({"error": "Brief validation is disabled in configuration"}), 400
+            
+        # Check if OpenAI API key is configured
+        if not current_app.config.get('OPENAI_API_KEY'):
+            return jsonify({"error": "OpenAI API key is not configured"}), 400
+            
         # First make sure the project exists
         project = Project.query.filter_by(project_id=project_id).first()
         
@@ -81,9 +91,12 @@ def validate_project(project_id):
         if not validation_result:
             return jsonify({"error": "Failed to validate project brief"}), 500
             
+        if isinstance(validation_result, dict) and "error" in validation_result:
+            return jsonify(validation_result), 500
+            
         # Return the validation results
         return jsonify({"validation": validation_result}), 200
             
     except Exception as e:
         logger.exception(f"Error validating project brief for project ID {project_id}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
