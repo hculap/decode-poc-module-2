@@ -21,7 +21,7 @@ class Config:
         "max_overflow": 20,
         "pool_recycle": 1800,
     }
-    
+
     # Fireflies.ai
     FIREFLIES_API_URL = "https://api.fireflies.ai/graphql"
     FIREFLIES_API_KEY = os.getenv("FIREFLIES_API_KEY")
@@ -30,5 +30,9 @@ class Config:
     FIREFLIES_WEBHOOK_SECRET = os.getenv("FIREFLIES_WEBHOOK_SECRET", "")
     VERIFY_SIGNATURE = bool(FIREFLIES_WEBHOOK_SECRET)
     
+    # Module 1  Service
+    PROJECT_BRIEF_SERVICE_URL = os.getenv("PROJECT_BRIEF_SERVICE_URL", "http://localhost:80001")
+    
+
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')

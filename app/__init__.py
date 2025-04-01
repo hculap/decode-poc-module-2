@@ -26,6 +26,10 @@ def create_app(config_class=Config):
     from app.routes.meetings import meetings_bp
     app.register_blueprint(meetings_bp)
     
+    # Register Projects blueprint
+    from app.routes.projects import projects_bp
+    app.register_blueprint(projects_bp)
+    
     # Register UI blueprint
     from app.routes.ui import ui_bp
     app.register_blueprint(ui_bp)
