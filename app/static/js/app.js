@@ -6,6 +6,7 @@ let currentMeetingId = null;
 let pollingInterval = null;
 let meetingData = {};
 let projectId = null;
+let projectData = null;
 let allMeetings = [];
 let currentFilter = 'all';
 
@@ -30,6 +31,12 @@ const listProjectId = document.getElementById('listProjectId');
 const meetingsList = document.getElementById('meetingsList');
 const statusSummary = document.getElementById('statusSummary');
 const filterControls = document.getElementById('filterControls');
+
+// Project detail containers
+const projectDetailsList = document.getElementById('projectDetailsList');
+const projectDetailsInput = document.getElementById('projectDetailsInput');
+const projectDetailsWaiting = document.getElementById('projectDetailsWaiting');
+const projectDetailsTranscript = document.getElementById('projectDetailsTranscript');
 
 const checkStatusButton = document.getElementById('checkStatusButton');
 const startNewButton = document.getElementById('startNewButton');
@@ -245,6 +252,10 @@ function renderMeetingsList(meetings) {
                 displayMeetingUrl.textContent = meeting.meeting_url;
                 displayProjectId.textContent = meeting.project_id;
                 showScreen('waitingScreen');
+                
+                // Display project details
+                renderProjectDetails('waiting');
+                
                 startPolling(meeting.project_id, currentMeetingId);
             }
         });
@@ -270,6 +281,119 @@ async function getMeetingsByProjectId(projectId) {
     }
 }
 
+// Get project details
+async function getProjectDetails(projectId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/projects/${projectId}`);
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to retrieve project details');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error retrieving project details:', error);
+        throw error;
+    }
+}
+
+// Render project details in the specified container
+function renderProjectDetails(screenType) {
+    // Select the appropriate container based on screen type
+    let container;
+    switch (screenType) {
+        case 'list':
+            container = projectDetailsList;
+            break;
+        case 'input':
+            container = projectDetailsInput;
+            break;
+        case 'waiting':
+            container = projectDetailsWaiting;
+            break;
+        case 'transcript':
+            container = projectDetailsTranscript;
+            break;
+        default:
+            console.error('Invalid screen type for project details');
+            return;
+    }
+    
+    // Clear current content
+    container.innerHTML = '';
+    
+    // If no project data, show loading state
+    if (!projectData) {
+        container.innerHTML = `
+            <div class="project-details-skeleton">
+                <div class="skeleton-loader h-6 w-3/4 bg-gray-200 rounded mb-3"></div>
+                <div class="skeleton-loader h-4 w-full bg-gray-200 rounded mb-2"></div>
+                <div class="skeleton-loader h-4 w-full bg-gray-200 rounded mb-2"></div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Create sections for Requirements and Feedback/Questions
+    const requirementsSection = document.createElement('div');
+    requirementsSection.className = 'project-details mb-4';
+    
+    const questionsSection = document.createElement('div');
+    questionsSection.className = 'project-details';
+    
+    // Requirements Section
+    const requirementsHeader = document.createElement('div');
+    requirementsHeader.className = 'project-details-header';
+    requirementsHeader.innerHTML = `
+        <h3>Project Requirements</h3>
+        <button class="project-details-toggle" data-target="requirements-content">Show/Hide</button>
+    `;
+    
+    const requirementsContent = document.createElement('div');
+    requirementsContent.id = 'requirements-content';
+    requirementsContent.className = 'project-details-content';
+    requirementsContent.innerHTML = marked.parse(projectData.requirements || 'No requirements specified.');
+    
+    requirementsSection.appendChild(requirementsHeader);
+    requirementsSection.appendChild(requirementsContent);
+    
+    // Questions/Feedback Section
+    const questionsHeader = document.createElement('div');
+    questionsHeader.className = 'project-details-header';
+    questionsHeader.innerHTML = `
+        <h3>Followup Questions</h3>
+        <button class="project-details-toggle" data-target="questions-content">Show/Hide</button>
+    `;
+    
+    const questionsContent = document.createElement('div');
+    questionsContent.id = 'questions-content';
+    questionsContent.className = 'project-details-content';
+    questionsContent.innerHTML = marked.parse(projectData.questions || 'No questions specified.');
+    
+    questionsSection.appendChild(questionsHeader);
+    questionsSection.appendChild(questionsContent);
+    
+    // Add everything to container
+    container.appendChild(requirementsSection);
+    container.appendChild(questionsSection);
+    
+    // Add toggle functionality to show/hide buttons
+    container.querySelectorAll('.project-details-toggle').forEach(button => {
+        button.addEventListener('click', () => {
+            const targetId = button.getAttribute('data-target');
+            const targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+                targetElement.classList.toggle('collapsed');
+                
+                // Update button text based on state
+                button.textContent = targetElement.classList.contains('collapsed') ? 'Show' : 'Hide';
+            }
+        });
+    });
+}
+
 // Function to display the meetings list
 function displayMeetingsList(meetings, projectId) {
     // Save all meetings for filtering
@@ -280,6 +404,9 @@ function displayMeetingsList(meetings, projectId) {
     
     // Update status summary
     updateStatusSummary(meetings);
+    
+    // Display project details
+    renderProjectDetails('list');
     
     // Apply current filter
     filterMeetings(currentFilter);
@@ -377,11 +504,34 @@ async function refreshMeetings() {
     }
 }
 
+// Load project details
+async function loadProjectDetails(projectId) {
+    try {
+        const data = await getProjectDetails(projectId);
+        projectData = data;
+        
+        // Update all project detail containers
+        renderProjectDetails('list');
+        renderProjectDetails('input');
+        renderProjectDetails('waiting');
+        renderProjectDetails('transcript');
+        
+        return true;
+    } catch (error) {
+        console.error('Error loading project details:', error);
+        showError(`Failed to load project details: ${error.message}`);
+        return false;
+    }
+}
+
 function displayTranscript(meetingData) {
     // Update the transcript screen with meeting details
     transcriptMeetingUrl.textContent = meetingData.meeting_url;
     transcriptProjectId.textContent = meetingData.project_id;
     transcriptMeetingDate.textContent = formatDate(meetingData.meeting_datetime);
+    
+    // Display project details
+    renderProjectDetails('transcript');
     
     // Parse and display the transcript
     const transcription = meetingData.transcription || 'No transcript available yet.';
@@ -479,6 +629,9 @@ meetingForm.addEventListener('submit', async function(e) {
         // Refresh meetings list
         await refreshMeetings();
         
+        // Render project details
+        renderProjectDetails('waiting');
+        
         // Switch to waiting screen
         showScreen('waitingScreen');
         
@@ -518,18 +671,30 @@ startNewButton.addEventListener('click', function() {
     stopPolling();
     currentMeetingId = null;
     meetingData = {};
+    
+    // Display project details
+    renderProjectDetails('input');
+    
     showScreen('inputScreen');
 });
 
 newTranscriptionButton.addEventListener('click', function() {
     currentMeetingId = null;
     meetingData = {};
+    
+    // Display project details
+    renderProjectDetails('input');
+    
     showScreen('inputScreen');
 });
 
 startNewFromListButton.addEventListener('click', function() {
     currentMeetingId = null;
     meetingData = {};
+    
+    // Display project details
+    renderProjectDetails('input');
+    
     showScreen('inputScreen');
 });
 
@@ -573,6 +738,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         projectId = getProjectIdFromUrl();
         const urlMeetingId = getMeetingIdFromUrl();
         
+        // Load project details if project ID is available
+        if (projectId) {
+            try {
+                await loadProjectDetails(projectId);
+            } catch (error) {
+                console.warn(`Could not load project details: ${error.message}`);
+                // Continue with app initialization even if project details fail to load
+            }
+        }
+        
         // First priority: Check if a specific meeting ID is provided
         if (projectId && urlMeetingId) {
             try {
@@ -590,6 +765,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                         // Meeting is in progress
                         displayMeetingUrl.textContent = meeting.meeting_url;
                         displayProjectId.textContent = meeting.project_id;
+                        
+                        // Display project details
+                        renderProjectDetails('waiting');
+                        
                         showScreen('waitingScreen');
                         startPolling(projectId, currentMeetingId);
                     }
@@ -619,6 +798,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // If we get here, show the input form
+        if (projectId) {
+            // Display project details
+            renderProjectDetails('input');
+        }
+        
         showScreen('inputScreen');
         
     } catch (error) {
