@@ -30,12 +30,12 @@ class Config:
     FIREFLIES_WEBHOOK_SECRET = os.getenv("FIREFLIES_WEBHOOK_SECRET", "")
     VERIFY_SIGNATURE = bool(FIREFLIES_WEBHOOK_SECRET)
     
-    # Module 1  Service
-    PROJECT_BRIEF_SERVICE_URL = os.getenv("PROJECT_BRIEF_SERVICE_URL", "http://localhost:80001")
+    # External Services
+    PROJECT_BRIEF_SERVICE_URL = os.getenv("PROJECT_BRIEF_SERVICE_URL", "http://localhost:8001")
     
-    # OpenAI
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    # OpenAI brief validation
     ENABLE_BRIEF_VALIDATION = os.getenv("ENABLE_BRIEF_VALIDATION", "false").lower() == "true"
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
